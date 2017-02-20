@@ -31,8 +31,14 @@
   "optionalDependencies": {},
   "preferGlobal": true,
   "readme": "ERROR: No README data found!",
+  "bugs": "https://github.com/qpv-qa/testrail-cli-adv/issues",
+  "repository":
+  {
+    "type": "git",
+    "url": "https://github.com/qpv-qa/testrail-cli-adv.git"
+  },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "version": "0.0.2"
+  "version": "0.0.3"
 }
