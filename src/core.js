@@ -199,7 +199,7 @@ module.exports = function constructCore(TestRail, configs, process, console) {
                       }
 
                       // Only append tests we've mapped to a TestRail case.
-                      if (caseResult.case_id) {
+                      if (caseResult.case_id && caseResult.status_id) {
                         debug('Appending case result:');
                         caseResults.push(caseResult);
                       }
@@ -276,10 +276,11 @@ module.exports = function constructCore(TestRail, configs, process, console) {
     _resolveCaseIdFrom: function resolveCaseIdFromTestCase(testCase) {
       var testClass = HtmlEntities.decode(testCase.attributes.classname),
           testName = HtmlEntities.decode(testCase.attributes.name);
-      
+
       //First try to find case id in case name; it should be enclosed in square brackets with a number sign attached at left side
-      if(testCase.attributes.name.match(/#\[\d{1,6}]/) !== null) {
-        return testCase.attributes.name.match(/#\[\d{1,6}]/)[0].match(/\d{1,6}/)[0];
+      debug(testName);
+      if(testName.match(/#\[\d{1,6}]/) !== null) {
+        return testName.match(/#\[\d{1,6}]/)[0].match(/\d{1,6}/)[0];
       }
 
       // Then check if there's a matching caseClassAndNameToIdMap class.
