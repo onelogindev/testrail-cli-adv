@@ -185,10 +185,13 @@ module.exports = function constructCore(TestRail, configs, process, console) {
 
                       // If testcase.elements exists, there was a failure. 5 means failure. Add fail message.
                       if (testcase.elements) {
+                        //do not consider skipped tests
+                        if (testcase.elements[0].name != "skipped") {
                           caseResult.status_id = 5;
-                          if (testcase.elements[0].attributes.message){
+                          if (testcase.elements[0].attributes.message) {
                               caseResult.comment = HtmlEntities.decode(testcase.elements[0].attributes.message);
                           }
+                        }
                       }
                       // Otherwise, the test case passed. 1 means pass.
                       else {
@@ -274,7 +277,12 @@ module.exports = function constructCore(TestRail, configs, process, console) {
       var testClass = HtmlEntities.decode(testCase.attributes.classname),
           testName = HtmlEntities.decode(testCase.attributes.name);
 
-      // First check if there's a matching caseClassAndNameToIdMap class.
+      //First try to find case id in case name; it should be enclosed in square brackets with a number sign attached at left side
+      if(testName.match(/#\[\d{1,6}]/) !== null) {
+        return testName.match(/#\[\d{1,6}]/)[0].match(/\d{1,6}/)[0];
+      }
+
+      // Then check if there's a matching caseClassAndNameToIdMap class.
       if (configs.caseClassAndNameToIdMap && configs.caseClassAndNameToIdMap[testClass]) {
         // If there's a matching name nested underneath the class, return it.
         if (configs.caseClassAndNameToIdMap[testClass][testName]) {
