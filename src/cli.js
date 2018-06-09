@@ -1,6 +1,7 @@
 "use strict";
 
 var YAML = require('yamljs');
+var fs = require('fs');
 
 module.exports = function testrailCliFactory(coreFactory, TestRailFactory, argv, process, console) {
   process = process || global.process;
@@ -24,7 +25,17 @@ module.exports = function testrailCliFactory(coreFactory, TestRailFactory, argv,
 
   // Read in any/all configuration files.
   try {
-    configs = YAML.load(process.cwd() + '/.testrail-cli.yml');
+    var configPath = process.cwd() + '/.testrail-cli.yml';
+    if (fs.existsSync(configPath)) {
+      configs = YAML.load(configPath)
+    } else {
+      configPath = process.cwd() + '/.testrail-cli.json';
+      if (fs.existsSync(configPath)) {
+        configs = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+      } else {
+        configs = {projectId: null, caseNameToIdMap: {}, caseClassAndNameToIdMap: {}};
+      }
+    }
   }
   catch (Exception) {
     configs = {projectId: null, caseNameToIdMap: {}, caseClassAndNameToIdMap: {}};
