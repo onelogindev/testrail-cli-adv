@@ -329,6 +329,24 @@ module.exports = function constructCore(TestRail, configs, process, console) {
         else {
           console.log('Did not parse any test XML files.');
         }
+        if (configs.coverage) {
+          Object.keys(configs.caseNameToIdMap).forEach(function(caseName) {
+            if (coverage.caseNameUsed[caseName] === undefined) {
+              console.log('Case "' + caseName + '" mapping to ' + configs.caseNameToIdMap[caseName] + ' has not been used')
+            }
+          });
+          Object.keys(configs.caseClassAndNameToIdMap).forEach(function(caseClass) {
+            if (coverage.caseClassAndNameUsed[caseClass] === undefined) {
+              console.log('Class "' + caseClass + '" mapping has not been used at all');
+              return
+            }
+            Object.keys(configs.caseClassAndNameToIdMap[caseClass]).forEach(function(caseName) {
+              if (coverage.caseNameUsed[caseName] === undefined) {
+                console.log('Class "' + caseClass + '" and case "' + caseName + '" mapping to ' + configs.caseClassAndNameToIdMap[caseClass][caseName] + ' has not been used')
+              }
+            });
+          });
+        }
       });
     },
 

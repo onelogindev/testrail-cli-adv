@@ -43,6 +43,7 @@ module.exports = function testrailCliFactory(coreFactory, TestRailFactory, argv,
 
   // Global configs to pull in.
   configs.debug = argv.debug || false;
+  configs.coverage = argv.coverage || false;
 
   // Authenticate and create the TestRail client.
   testRailClient = new TestRailFactory(url, username, password);
