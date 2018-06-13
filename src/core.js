@@ -290,6 +290,8 @@ module.exports = function constructCore(TestRail, configs, process, console) {
               caseResult.elapsed += runResult.elapsed;
               if (runResult.statusId > caseResult.status_id) {
                 caseResult.status_id = runResult.statusId;
+              }
+              if (runResult.comment !== '') {
                 caseResult.comment += runResult.testName + ': ' + runResult.comment + '\n'
               }
             });
