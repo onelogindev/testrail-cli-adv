@@ -129,20 +129,27 @@ module.exports = function constructCore(TestRail, configs, process, console) {
      *
      * @param {int} runId
      *   The ID of the run with which to associate the cases.
+     * @param {int} planId
+     *   The ID of the test plan which should be analyzed to associate results with single run cases.
      * @param {string} fileOrDir
      *   The path to the junit XML file or directory of files.
      */
-    report: function reportXml(runId, fileOrDir) {
+    report: function reportXml(runId, planId, fileOrDir) {
       var files = [],
           caseResultsMap = {},
+          caseRunMap = {},
           fsStat;
 
       debug('Attempting to report runs for test cases.');
 
-      if (!fileOrDir || !runId) {
-        console.error('You must supply a file (-f or --file=) and runId (-r or --runId=).');
-        debug('file: "' + fileOrDir + '", runId: "' + runId + '"');
+      if (!fileOrDir || !runId || !planId) {
+        console.error('You must supply a file (-f or --file=) and either runId (-r or --runId=) or planId (-p or --planId=).');
+        debug('file: "' + fileOrDir + '", runId: "' + runId + '", planId: "' + planId + '"');
         process.exit(1);
+      }
+
+      if (!runId) {
+
       }
 
       // Stat the file.

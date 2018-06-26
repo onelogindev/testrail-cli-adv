@@ -68,9 +68,10 @@ module.exports = function testrailCliFactory(coreFactory, TestRailFactory, argv,
     },
     report: function reportXmlFromConsole() {
       var runId = argv.r || argv.runId,
+          planId = argv.p || argv.planId,
           files = argv.f || argv.file;
 
-      core.report(runId, files);
+      core.report(runId, planId, files);
     }
   }
 };
