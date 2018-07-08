@@ -1,6 +1,7 @@
 'use strict'
 
 let jUnitReportsManager = require('./jUnitReports')
+let caseRunMapManager   = require('./caseRunMap')
 
 /**
  * Instantiates a "core" object with given dependencies. The object consists of
@@ -10,7 +11,7 @@ let jUnitReportsManager = require('./jUnitReports')
  * @param {object} configs
  * @param process
  * @param console
- * @returns {{init: Function, finish: Function, report: Function}}
+ * @returns {{report: Function}}
  */
 module.exports = function constructCore(TestRail, configs, process, console) {
     process = process || global.process
@@ -28,6 +29,9 @@ module.exports = function constructCore(TestRail, configs, process, console) {
             caseNameUsed: {},
             caseClassAndNameUsed: {}
         }
+
+    // Read in any/all configuration files.
+    let caseMapRunToRail = caseRunMapManager.loadMapFromFile('./testrail-cli.json')
 
     commands = {
         /**
@@ -75,27 +79,48 @@ module.exports = function constructCore(TestRail, configs, process, console) {
                     // If test case failure elements exist, there was a failure. 5 means failure. Add failure messages
                     runResult.statusId = 5
                     runResult.comment += runCase.failures.join('\n')
-                // TODO: what TestRail status to map for skipped cases?
-                // } else if (runCase.skipped.length > 0) {
-                // Otherwise, the test case passed. 1 means pass.
+                } else if (runCase.skipped.length > 0) {
+                    // TODO: what TestRail status to map for skipped cases? skip reporting for now
                 } else {
+                    // Otherwise, the test case passed. 1 means pass.
                     runResult.statusId = 1
                 }
 
-                debug('Result: ' + JSON.stringify(runResult, undefined, 4))
-                debug('Appending result to cases: ' + runResult.railCaseIds)
-                for (let caseId of runResult.railCaseIds)  {
-                    if (caseResultsMap[caseId] === undefined) {
-                        caseResultsMap[caseId] = []
+                if (runResult.statusId !== undefined) {
+                    debug('Result: ' + JSON.stringify(runResult, undefined, 4))
+                    debug('Appending result to cases: ' + runResult.railCaseIds)
+                    for (let caseId of runResult.railCaseIds)  {
+                        if (caseResultsMap[caseId] === undefined) {
+                            caseResultsMap[caseId] = []
+                        }
+                        caseResultsMap[caseId].push(runResult)
                     }
-                    caseResultsMap[caseId].push(runResult)
                 }
+            }
+
+            if (configs.logCoverage) {
+                Object.keys(configs.caseNameToIdMap).forEach(function (caseName) {
+                    if (coverage.caseNameUsed[caseName] === undefined) {
+                        console.log('Case "' + caseName + '" mapping to ' + configs.caseNameToIdMap[caseName] + ' has not been used')
+                    }
+                })
+                Object.keys(configs.caseClassAndNameToIdMap).forEach(function (caseClass) {
+                    if (coverage.caseClassAndNameUsed[caseClass] === undefined) {
+                        console.log('Class "' + caseClass + '" mapping has not been used at all')
+                        return
+                    }
+                    Object.keys(configs.caseClassAndNameToIdMap[caseClass]).forEach(function (caseName) {
+                        if (coverage.caseNameUsed[caseName] === undefined) {
+                            console.log('Class "' + caseClass + '" and case "' + caseName + '" mapping to ' + configs.caseClassAndNameToIdMap[caseClass][caseName] + ' has not been used')
+                        }
+                    })
+                })
             }
 
             // Post results if we had any.
             if (Object.keys(caseResultsMap).length > 0) {
                 let caseResults = []
-                Object.keys(caseResultsMap).forEach(function (caseId) {
+                for (let caseId of Object.keys(caseResultsMap)) {
                     debug('caseId = ' + caseId)
                     let caseResult = {
                         case_id: caseId,
@@ -103,7 +128,7 @@ module.exports = function constructCore(TestRail, configs, process, console) {
                         elapsed: 0,
                         comment: ''
                     }
-                    caseResultsMap[caseId].forEach(function (runResult) {
+                    for (let runResult of caseResultsMap[caseId]) {
                         debug('runResult: ' + JSON.stringify(runResult, undefined, 4))
                         caseResult.elapsed += runResult.elapsed
                         if (runResult.statusId > caseResult.status_id) {
@@ -112,11 +137,11 @@ module.exports = function constructCore(TestRail, configs, process, console) {
                         if (runResult.comment !== '') {
                             caseResult.comment += runResult.testName + ': ' + runResult.comment + '\n'
                         }
-                    })
+                    }
                     caseResult.elapsed = '' + caseResult.elapsed + 's'
                     debug('caseResult.elapsed = ' + caseResult.elapsed)
                     caseResults.push(caseResult)
-                })
+                }
                 (function addResultsForCasesAttempt() {
                     debug('Attempting to send case results to TestRail')
 
@@ -149,29 +174,10 @@ module.exports = function constructCore(TestRail, configs, process, console) {
             else {
                 console.log('Could not map any result')
             }
-
-            if (configs.coverage) {
-                Object.keys(configs.caseNameToIdMap).forEach(function (caseName) {
-                    if (coverage.caseNameUsed[caseName] === undefined) {
-                        console.log('Case "' + caseName + '" mapping to ' + configs.caseNameToIdMap[caseName] + ' has not been used')
-                    }
-                })
-                Object.keys(configs.caseClassAndNameToIdMap).forEach(function (caseClass) {
-                    if (coverage.caseClassAndNameUsed[caseClass] === undefined) {
-                        console.log('Class "' + caseClass + '" mapping has not been used at all')
-                        return
-                    }
-                    Object.keys(configs.caseClassAndNameToIdMap[caseClass]).forEach(function (caseName) {
-                        if (coverage.caseNameUsed[caseName] === undefined) {
-                            console.log('Class "' + caseClass + '" and case "' + caseName + '" mapping to ' + configs.caseClassAndNameToIdMap[caseClass][caseName] + ' has not been used')
-                        }
-                    })
-                })
-            }
         },
 
         /**
-         * Helper method to map a testcase (xUnit) to a TestRail caseId. Uses config
+         * Helper method to map a testcase (xUnit) to a TestRail caseId. Uses caseMapRunToRail
          *
          * @param {String} testClass - The class associated with test case.
          * @param {String} testName - The name of the test run.
@@ -190,21 +196,21 @@ module.exports = function constructCore(TestRail, configs, process, console) {
             }
 
             // Then check if there's a matching caseClassAndNameToIdMap class.
-            if (railCaseIds === undefined && configs.caseClassAndNameToIdMap && configs.caseClassAndNameToIdMap[testClass]) {
+            if (railCaseIds === undefined && caseMapRunToRail.caseClassAndNameToIdMap && caseMapRunToRail.caseClassAndNameToIdMap[testClass]) {
                 // If there's a matching name nested underneath the class, return it.
-                if (configs.caseClassAndNameToIdMap[testClass][testName]) {
+                if (caseMapRunToRail.caseClassAndNameToIdMap[testClass][testName]) {
                     if (coverage.caseClassAndNameUsed[testClass] === undefined) {
                         coverage.caseClassAndNameUsed[testClass] = {}
                     }
                     coverage.caseClassAndNameUsed[testClass][testName] = true
-                    railCaseIds = configs.caseClassAndNameToIdMap[testClass][testName]
+                    railCaseIds = caseMapRunToRail.caseClassAndNameToIdMap[testClass][testName]
                 }
             }
 
             // Then check if there's a matching caseNameToIdMap name.
-            if (railCaseIds === undefined && configs.caseNameToIdMap && configs.caseNameToIdMap[testName]) {
+            if (railCaseIds === undefined && caseMapRunToRail.caseNameToIdMap && caseMapRunToRail.caseNameToIdMap[testName]) {
                 coverage.caseNameUsed[testName] = true
-                railCaseIds = configs.caseNameToIdMap[testName]
+                railCaseIds = caseMapRunToRail.caseNameToIdMap[testName]
             }
 
             if (railCaseIds === undefined) {

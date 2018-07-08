@@ -9,7 +9,6 @@ var argv = require('minimist')(process.argv.slice(2)),
 
 // Instantiate the CLI.
 cli = cliFactory(
-  require('./src/core.js'),
   require('node-testrail'),
   argv
 );

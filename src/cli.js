@@ -1,5 +1,6 @@
 'use strict'
-let caseRunMapManager = require('./caseRunMap')
+
+let core = require('./core.js')
 
 module.exports = function testrailCliFactory(coreFactory, TestRailFactory, argv, process, console) {
     process = process || global.process
@@ -8,7 +9,6 @@ module.exports = function testrailCliFactory(coreFactory, TestRailFactory, argv,
     let url = process.env.TESTRAIL_URL || argv.url,
         username = process.env.TESTRAIL_UN || argv.username,
         password = process.env.TESTRAIL_PW || argv.password,
-        configs,
         testRailClient,
         core
 
@@ -21,12 +21,11 @@ module.exports = function testrailCliFactory(coreFactory, TestRailFactory, argv,
         process.exit(1)
     }
 
-    // Read in any/all configuration files.
-    configs = caseRunMapManager.loadMapFromFile('./testrail-cli.json')
+    let configs = {}
 
     // Global configs to pull in.
     configs.debug = argv.debug || false
-    configs.coverage = argv.coverage || false
+    configs.logCoverage = argv.coverage || false
 
     // Authenticate and create the TestRail client.
     testRailClient = new TestRailFactory(url, username, password)
