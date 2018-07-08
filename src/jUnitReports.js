@@ -1,6 +1,8 @@
 'use strict'
 let XmlParser = require('xml-js')
 let fs = require('fs')
+let HtmlEntitiesFactory = require('html-entities').AllHtmlEntities
+let HtmlEntities = new HtmlEntitiesFactory()
 
 function JUnitReportsManager() {
     function parseReportBranch(reportBranch, cases) {
