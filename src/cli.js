@@ -1,16 +1,13 @@
 'use strict'
 
-let core = require('./core.js')
+let Core = require('./core.js')
 
-module.exports = function testrailCliFactory(coreFactory, TestRailFactory, argv, process, console) {
+module.exports = function testrailCliFactory(argv, process, console) {
     process = process || global.process
     console = console || global.console
-
-    let url = process.env.TESTRAIL_URL || argv.url,
-        username = process.env.TESTRAIL_UN || argv.username,
-        password = process.env.TESTRAIL_PW || argv.password,
-        testRailClient,
-        core
+    let url      = process.env.TESTRAIL_URL || argv.url
+    let username = process.env.TESTRAIL_UN  || argv.username
+    let password = process.env.TESTRAIL_PW  || argv.password
 
     // Ensure we have a URL, username, and password to work with.
     if (!url || !username || !password) {
@@ -24,20 +21,26 @@ module.exports = function testrailCliFactory(coreFactory, TestRailFactory, argv,
     let configs = {}
 
     // Global configs to pull in.
-    configs.debug = argv.debug || false
+    configs.debug       = argv.debug || false
     configs.logCoverage = argv.coverage || false
-
-    // Authenticate and create the TestRail client.
-    testRailClient = new TestRailFactory(url, username, password)
+    configs.url         = url
+    configs.username    = username
+    configs.password    = password
+    configs.console     = console
 
     // Instantiate the core.
-    core = coreFactory(testRailClient, configs, process, console)
+    let core = new Core(configs)
 
     return {
         report: () => {
-            let runId = argv.r || argv.runId,
-                planId = argv.p || argv.planId,
-                files = argv.f || argv.file
+            let runId  = argv.r || argv.runId
+            let planId = argv.p || argv.planId
+            let files  = argv.f || argv.file
+            if (!files || !runId || !planId) {
+                console.error('You must supply a file (-f or --file=) and either runId (-r or --runId=) or planId (-p or --planId=).')
+                debug('files: "' + files + '", runId: "' + runId + '", planId: "' + planId + '"')
+                process.exit(1)
+            }
 
             core.report(runId, planId, files)
         }
