@@ -32,7 +32,7 @@ function Core({testRailUrl, testRailUser, testRailPassword, console, debugMode})
      * @param {boolean} logCoverage
      *   whether to log coverage info into console
      */
-    this.report = function({runId, planId, reportsPath, logCoverage}) {
+    this.report = async function({runId, planId, reportsPath, logCoverage}) {
         let caseResultsMap = {}
 
         debug('Attempting to report runs for test cases.')
@@ -111,7 +111,7 @@ function Core({testRailUrl, testRailUser, testRailPassword, console, debugMode})
                 debug('caseResult.elapsed = ' + caseResult.elapsed)
                 caseResults.push(caseResult)
             }
-            testRailManager.sendReport({runId, caseResults, attempts: 3})
+            await testRailManager.sendReport({runId, caseResults, attempts: 3})
         }
         else {
             console.log('Could not map any result')

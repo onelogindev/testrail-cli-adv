@@ -31,7 +31,7 @@ module.exports = function testrailCliFactory(argv, process, console) {
     let core = new Core(configs)
 
     return {
-        report: () => {
+        report: async () => {
             let reportConfigs = {}
             reportConfigs.runId       = argv.runId    || argv.r
             reportConfigs.planId      = argv.planId   || argv.p
@@ -43,7 +43,7 @@ module.exports = function testrailCliFactory(argv, process, console) {
                 process.exit(1)
             }
 
-            core.report(reportConfigs)
+            await core.report(reportConfigs)
         }
     }
 }

@@ -10,6 +10,10 @@ let cli = cliFactory(argv)
 // Check if the provided command exists, then execute.
 if (cli.hasOwnProperty(command)) {
     cli[command]()
+        .catch(err => {
+            console.error(err.message)
+            process.exit(1)
+        })
 } else {
     console.error('Unknown command "' + command + '"')
     process.exit(1)
