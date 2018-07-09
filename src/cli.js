@@ -21,28 +21,29 @@ module.exports = function testrailCliFactory(argv, process, console) {
     let configs = {}
 
     // Global configs to pull in.
-    configs.debug       = argv.debug || false
-    configs.logCoverage = argv.coverage || false
-    configs.url         = url
-    configs.username    = username
-    configs.password    = password
-    configs.console     = console
+    configs.testRailUrl      = url
+    configs.testRailUser     = username
+    configs.testRailPassword = password
+    configs.console          = console
+    configs.debugMode        = argv.debug || false
 
     // Instantiate the core.
     let core = new Core(configs)
 
     return {
         report: () => {
-            let runId  = argv.r || argv.runId
-            let planId = argv.p || argv.planId
-            let files  = argv.f || argv.file
-            if (!files || !runId || !planId) {
+            let reportConfigs = {}
+            reportConfigs.runId       = argv.runId    || argv.r
+            reportConfigs.planId      = argv.planId   || argv.p
+            reportConfigs.reportsPath = argv.file     || argv.f
+            reportConfigs.logCoverage = argv.coverage || false
+            if (!reportConfigs.reportsPath || (reportConfigs.runId === undefined && reportConfigs.planId === undefined)) {
                 console.error('You must supply a file (-f or --file=) and either runId (-r or --runId=) or planId (-p or --planId=).')
-                debug('files: "' + files + '", runId: "' + runId + '", planId: "' + planId + '"')
+                debug('files: "' + reportConfigs.reportsPath + '", runId: "' + reportConfigs.runId + '", planId: "' + reportConfigs.planId + '"')
                 process.exit(1)
             }
 
-            core.report(runId, planId, files)
+            core.report(reportConfigs)
         }
     }
 }

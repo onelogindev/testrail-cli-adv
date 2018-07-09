@@ -11,18 +11,17 @@ let TestRailClient = require('node-testrail')
  * @param {object} configs
  * @returns {{report: Function}}
  */
-function Core(configs) {
-    let console = configs.console || global.console
+function Core({testRailUrl, testRailUser, testRailPassword, console, debugMode}) {
+    let console = console || global.console
 
-    let apiCallsAttempted = 0,
-        maxCallAttemptsAllowed = 5,
-        debug = function debug(message) {
-            if (configs.debug) {
-                console.error(message)
-            }
-        },
-        commands,
-        coverage = { // a collection of case and suit names, used by _resolveCaseIdsFrom method, for coverage analysis
+    let apiCallsAttempted = 0
+    let maxCallAttemptsAllowed = 5
+    let debug = function (message) {
+        if (debugMode) {
+            console.error(message)
+        }
+    }
+    let coverage = { // a collection of case and suit names, used by _resolveCaseIdsFrom method, for coverage analysis
             caseNameUsed: {},
             caseClassAndNameUsed: {}
         }
@@ -31,7 +30,7 @@ function Core(configs) {
     let caseMapRunToRail = caseRunMapManager.loadMapFromFile('./testrail-cli.json')
 
     // Authenticate and create the testRailClient client.
-    let testRailClient = new TestRailClient(configs.url, configs.username, configs.password)
+    let testRailClient = new TestRailClient(testRailUrl, testRailUser, testRailPassword)
 
     /**
      * Helper method to map a testcase (xUnit) to a testRailClient caseId. Uses caseMapRunToRail
@@ -89,14 +88,13 @@ function Core(configs) {
      *   The ID of the run with which to associate the cases.
      * @param {int} planId
      *   The ID of the test plan which should be analyzed to associate results with single run cases.
-     * @param {string} fileOrDir
+     * @param {string} reportsPath
      *   The path to the junit XML file or directory of files.
+     * @param {boolean} logCoverage
+     *   whether to log coverage info into console
      */
-    this.report = function(runId, planId, fileOrDir) {
-        let files = [],
-            caseResultsMap = {},
-            caseRunMap = {},
-            fsStat
+    this.report = function({runId, planId, reportsPath, logCoverage}) {
+        let caseResultsMap = {}
 
         debug('Attempting to report runs for test cases.')
 
@@ -105,7 +103,7 @@ function Core(configs) {
         }
 
 
-        let runCases = jUnitReportsManager.loadCasesFromReportsPath(fileOrDir)
+        let runCases = jUnitReportsManager.loadCasesFromReportsPath(reportsPath)
 
         for (let runCase of runCases) {
             let runResult = {
@@ -139,20 +137,20 @@ function Core(configs) {
             }
         }
 
-        if (configs.logCoverage) {
-            Object.keys(configs.caseNameToIdMap).forEach(function (caseName) {
+        if (logCoverage) {
+            Object.keys(caseMapRunToRail.caseNameToIdMap).forEach(function (caseName) {
                 if (coverage.caseNameUsed[caseName] === undefined) {
-                    console.log('Case "' + caseName + '" mapping to ' + configs.caseNameToIdMap[caseName] + ' has not been used')
+                    console.log('Case "' + caseName + '" mapping to ' + caseMapRunToRail.caseNameToIdMap[caseName] + ' has not been used')
                 }
             })
-            Object.keys(configs.caseClassAndNameToIdMap).forEach(function (caseClass) {
+            Object.keys(caseMapRunToRail.caseClassAndNameToIdMap).forEach(function (caseClass) {
                 if (coverage.caseClassAndNameUsed[caseClass] === undefined) {
                     console.log('Class "' + caseClass + '" mapping has not been used at all')
                     return
                 }
-                Object.keys(configs.caseClassAndNameToIdMap[caseClass]).forEach(function (caseName) {
+                Object.keys(caseMapRunToRail.caseClassAndNameToIdMap[caseClass]).forEach(function (caseName) {
                     if (coverage.caseNameUsed[caseName] === undefined) {
-                        console.log('Class "' + caseClass + '" and case "' + caseName + '" mapping to ' + configs.caseClassAndNameToIdMap[caseClass][caseName] + ' has not been used')
+                        console.log('Class "' + caseClass + '" and case "' + caseName + '" mapping to ' + caseMapRunToRail.caseClassAndNameToIdMap[caseClass][caseName] + ' has not been used')
                     }
                 })
             })
