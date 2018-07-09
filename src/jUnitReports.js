@@ -4,7 +4,7 @@ let fs = require('fs')
 let HtmlEntitiesFactory = require('html-entities').AllHtmlEntities
 let HtmlEntities = new HtmlEntitiesFactory()
 
-function JUnitReportsManager() {
+function JUnitReportsManager({debug}) {
     function parseReportBranch(reportBranch, cases) {
         for (let reportElement of reportBranch.elements) {
             // If the root represents a single testsuite, treat it as such.
@@ -106,4 +106,4 @@ function JUnitReportsManager() {
     }
 }
 
-module.exports = new JUnitReportsManager()
+module.exports = JUnitReportsManager

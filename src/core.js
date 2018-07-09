@@ -1,8 +1,8 @@
 'use strict'
 
-let jUnitReportsManager = require('./jUnitReports')
-let caseRunMapManager   = require('./caseRunMap')
-let TestRailClient = require('node-testrail')
+let JUnitReportsManager = require('./jUnitReports')
+let CaseRunMapManager   = require('./caseRunMap')
+let TestRailManager     = require('./testRail')
 
 /**
  * Instantiates a "core" object with given dependencies. The object consists of
@@ -13,71 +13,10 @@ let TestRailClient = require('node-testrail')
  */
 function Core({testRailUrl, testRailUser, testRailPassword, console, debugMode}) {
     let console = console || global.console
-
-    let apiCallsAttempted = 0
-    let maxCallAttemptsAllowed = 5
     let debug = function (message) {
         if (debugMode) {
             console.error(message)
         }
-    }
-    let coverage = { // a collection of case and suit names, used by _resolveCaseIdsFrom method, for coverage analysis
-            caseNameUsed: {},
-            caseClassAndNameUsed: {}
-        }
-
-    // Read in any/all configuration files.
-    let caseMapRunToRail = caseRunMapManager.loadMapFromFile('./testrail-cli.json')
-
-    // Authenticate and create the testRailClient client.
-    let testRailClient = new TestRailClient(testRailUrl, testRailUser, testRailPassword)
-
-    /**
-     * Helper method to map a testcase (xUnit) to a testRailClient caseId. Uses caseMapRunToRail
-     *
-     * @param {String} testClass - The class associated with test case.
-     * @param {String} testName - The name of the test run.
-     *
-     * @return {int[]}
-     *   Returns caseIds or empty array on failure to match.
-     */
-    function resolveCaseIdFromTestCase(testClass, testName) {
-        let railCaseIds = undefined
-
-        debug(testName)
-
-        //First try to find case id in case name; it should be enclosed in square brackets with a number sign attached at left side
-        if (testName.match(/#\[\d{1,6}]/) !== null) {
-            railCaseIds = [testName.match(/#\[\d{1,6}]/)[0].match(/\d{1,6}/)[0]]
-        }
-
-        // Then check if there's a matching caseClassAndNameToIdMap class.
-        if (railCaseIds === undefined && caseMapRunToRail.caseClassAndNameToIdMap && caseMapRunToRail.caseClassAndNameToIdMap[testClass]) {
-            // If there's a matching name nested underneath the class, return it.
-            if (caseMapRunToRail.caseClassAndNameToIdMap[testClass][testName]) {
-                if (coverage.caseClassAndNameUsed[testClass] === undefined) {
-                    coverage.caseClassAndNameUsed[testClass] = {}
-                }
-                coverage.caseClassAndNameUsed[testClass][testName] = true
-                railCaseIds = caseMapRunToRail.caseClassAndNameToIdMap[testClass][testName]
-            }
-        }
-
-        // Then check if there's a matching caseNameToIdMap name.
-        if (railCaseIds === undefined && caseMapRunToRail.caseNameToIdMap && caseMapRunToRail.caseNameToIdMap[testName]) {
-            coverage.caseNameUsed[testName] = true
-            railCaseIds = caseMapRunToRail.caseNameToIdMap[testName]
-        }
-
-        if (railCaseIds === undefined) {
-            railCaseIds = []
-        }
-
-        if (!Array.isArray(railCaseIds)) {
-            railCaseIds = [railCaseIds]
-        }
-
-        return railCaseIds
     }
 
     /**
@@ -102,13 +41,19 @@ function Core({testRailUrl, testRailUser, testRailPassword, console, debugMode})
 
         }
 
+        let testRailManager = new TestRailManager({testRailUrl, testRailUser, testRailPassword, debug})
 
+        // Read in any/all configuration files.
+        let caseRunMapManager = new CaseRunMapManager()
+        caseRunMapManager.loadMapFromFile('./testrail-cli.json')
+
+        let jUnitReportsManager = new JUnitReportsManager({debug})
         let runCases = jUnitReportsManager.loadCasesFromReportsPath(reportsPath)
 
         for (let runCase of runCases) {
             let runResult = {
                 testName   : runCase.testName,
-                railCaseIds: resolveCaseIdFromTestCase(runCase.testClass, runCase.testName),
+                railCaseIds: caseRunMapManager.resolveCaseIdFromTestCase(runCase.testClass, runCase.testName),
                 elapsed    : runCase.time,
                 statusId   : undefined,
                 comment    : ''
@@ -138,22 +83,7 @@ function Core({testRailUrl, testRailUser, testRailPassword, console, debugMode})
         }
 
         if (logCoverage) {
-            Object.keys(caseMapRunToRail.caseNameToIdMap).forEach(function (caseName) {
-                if (coverage.caseNameUsed[caseName] === undefined) {
-                    console.log('Case "' + caseName + '" mapping to ' + caseMapRunToRail.caseNameToIdMap[caseName] + ' has not been used')
-                }
-            })
-            Object.keys(caseMapRunToRail.caseClassAndNameToIdMap).forEach(function (caseClass) {
-                if (coverage.caseClassAndNameUsed[caseClass] === undefined) {
-                    console.log('Class "' + caseClass + '" mapping has not been used at all')
-                    return
-                }
-                Object.keys(caseMapRunToRail.caseClassAndNameToIdMap[caseClass]).forEach(function (caseName) {
-                    if (coverage.caseNameUsed[caseName] === undefined) {
-                        console.log('Class "' + caseClass + '" and case "' + caseName + '" mapping to ' + caseMapRunToRail.caseClassAndNameToIdMap[caseClass][caseName] + ' has not been used')
-                    }
-                })
-            })
+            caseRunMapManager.logCoverage()
         }
 
         // Post results if we had any.
@@ -181,32 +111,7 @@ function Core({testRailUrl, testRailUser, testRailPassword, console, debugMode})
                 debug('caseResult.elapsed = ' + caseResult.elapsed)
                 caseResults.push(caseResult)
             }
-            (function addResultsForCasesAttempt() {
-                debug('Attempting to send case results to testRailClient')
-
-                testRailClient.addResultsForCases(runId, {results: caseResults}, function (response) {
-                    response = typeof response === 'string' ? JSON.parse(response) : response
-
-                    debug('Received response from testRailClient.')
-
-                    if (response instanceof Array && response.length) {
-                        console.log('Successfully uploaded ' + response.length + ' test case results to testRailClient.')
-                        debug(response)
-                    }
-                    else {
-                        if (apiCallsAttempted < maxCallAttemptsAllowed) {
-                            apiCallsAttempted++
-                            debug('Failed to upload case runs. Attempt #' + apiCallsAttempted)
-                            addResultsForCasesAttempt()
-                        }
-                        else {
-                            debug(response)
-                            debug(caseResults)
-                            throw new Error('There was an error uploading test results to testRailClient: ' + response.error)
-                        }
-                    }
-                })
-            })()
+            testRailManager.sendReport({runId, caseResults, attempts: 3})
         }
         else {
             console.log('Could not map any result')
