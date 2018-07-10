@@ -25,7 +25,7 @@ function CaseRunMapManager({debug, console}) {
      * @return {int[]}
      *   Returns caseIds or empty array on failure to match.
      */
-    this.resolveCaseIdFromTestCase = (testClass, testName) => {
+    this.resolveCaseIdsFromCaseRun = (testClass, testName) => {
         let railCaseIds = undefined
 
         debug(testName)

@@ -3,6 +3,7 @@
 let JUnitReportsManager = require('./jUnitReports')
 let CaseRunMapManager   = require('./caseRunMap')
 let TestRailManager     = require('./testRail')
+let ReportDispatcher    = require('./reportDispatcher')
 
 /**
  * Instantiates a "core" object with given dependencies. The object consists of
@@ -33,85 +34,35 @@ function Core({testRailUrl, testRailUser, testRailPassword, console, debugMode})
      *   whether to log coverage info into console
      */
     this.report = async function({runId, planId, reportsPath, logCoverage}) {
-        let caseResultsMap = {}
 
         debug('Attempting to report runs for test cases.')
 
-        if (!runId) {
+        let testRailManager = new TestRailManager({testRailUrl, testRailUser, testRailPassword, debug, console})
+        await testRailManager.setup({runId, planId})
 
-        }
-
-        let testRailManager = new TestRailManager({testRailUrl, testRailUser, testRailPassword, debug})
-
-        // Read in any/all configuration files.
-        let caseRunMapManager = new CaseRunMapManager()
+        let caseRunMapManager = new CaseRunMapManager({debug, console})
         caseRunMapManager.loadMapFromFile('./testrail-cli.json')
 
         let jUnitReportsManager = new JUnitReportsManager({debug})
-        let runCases = jUnitReportsManager.loadCasesFromReportsPath(reportsPath)
+        let caseRuns = jUnitReportsManager.loadCasesFromReportsPath(reportsPath)
 
-        for (let runCase of runCases) {
-            let runResult = {
-                testName   : runCase.testName,
-                railCaseIds: caseRunMapManager.resolveCaseIdFromTestCase(runCase.testClass, runCase.testName),
-                elapsed    : runCase.time,
-                statusId   : undefined,
-                comment    : ''
-            }
-
-            if (runCase.failures.length > 0) {
-                // If test case failure elements exist, there was a failure. 5 means failure. Add failure messages
-                runResult.statusId = 5
-                runResult.comment += runCase.failures.join('\n')
-            } else if (runCase.skipped.length > 0) {
-                // TODO: what testRailClient status to map for skipped cases? skip reporting for now
-            } else {
-                // Otherwise, the test case passed. 1 means pass.
-                runResult.statusId = 1
-            }
-
-            if (runResult.statusId !== undefined) {
-                debug('Result: ' + JSON.stringify(runResult, undefined, 4))
-                debug('Appending result to cases: ' + runResult.railCaseIds)
-                for (let caseId of runResult.railCaseIds)  {
-                    if (caseResultsMap[caseId] === undefined) {
-                        caseResultsMap[caseId] = []
-                    }
-                    caseResultsMap[caseId].push(runResult)
-                }
-            }
-        }
+        let reportDispatcher = new ReportDispatcher({debug})
+        let planResults = reportDispatcher.dispatch({
+            caseRuns,
+            resolveCaseIdsFromCaseRun: caseRunMapManager.resolveCaseIdsFromCaseRun,
+            resolveCaseTestRunsFromPlan: testRailManager.resolveCaseTestRunsFromPlan,
+        })
 
         if (logCoverage) {
             caseRunMapManager.logCoverage()
         }
 
         // Post results if we had any.
-        if (Object.keys(caseResultsMap).length > 0) {
-            let caseResults = []
-            for (let caseId of Object.keys(caseResultsMap)) {
-                debug('caseId = ' + caseId)
-                let caseResult = {
-                    case_id: caseId,
-                    status_id: 1,
-                    elapsed: 0,
-                    comment: ''
-                }
-                for (let runResult of caseResultsMap[caseId]) {
-                    debug('runResult: ' + JSON.stringify(runResult, undefined, 4))
-                    caseResult.elapsed += runResult.elapsed
-                    if (runResult.statusId > caseResult.status_id) {
-                        caseResult.status_id = runResult.statusId
-                    }
-                    if (runResult.comment !== '') {
-                        caseResult.comment += runResult.testName + ': ' + runResult.comment + '\n'
-                    }
-                }
-                caseResult.elapsed = '' + caseResult.elapsed + 's'
-                debug('caseResult.elapsed = ' + caseResult.elapsed)
-                caseResults.push(caseResult)
+        if (planResults.length > 0) {
+            for (let runId of Object.keys(planResults)) {
+                let testResults = planResults[runId]
+                await testRailManager.sendReport({runId, testResults, attempts: 3})
             }
-            await testRailManager.sendReport({runId, caseResults, attempts: 3})
         }
         else {
             console.log('Could not map any result')

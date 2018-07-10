@@ -1,47 +1,63 @@
 'use strict'
 let TestRailClient = require('node-testrail')
 
-function TestRailManager({testRailUrl, testRailUser, testRailPassword, debug}) {
+function TestRailManager({testRailUrl, testRailUser, testRailPassword, debug, console}) {
+    let console = console || global.console
 
     // Authenticate and create the TestRail client.
     let testRailClient = new TestRailClient(testRailUrl, testRailUser, testRailPassword)
+    let planId = undefined
+    let defaultRunId = 0
 
-    function addResultsForCases(runId, caseResults) {
+    this.setup = async ({runId, planId}) => {
+        defaultRunId = runId
+        // TODO load test plan info
+    }
+
+    this.resolveCaseTestRunsFromPlan = caseId => {
+        if (planId === undefined) {
+            return [defaultRunId]
+        } else {
+            // TODO get info from set up map
+        }
+    }
+
+    function addResultsForCases(runId, testResults) {
         return new Promise(fulfill => {
-            testRailClient.addResultsForCases(runId, {results: caseResults}, function (response) {
+            testRailClient.addResultsForCases(runId, {results: testResults}, function (response) {
                 fulfill(response)
             })
         })
     }
 
-    async function sendReportAttempt({runId, caseResults, attemptsLeft}) {
-        debug('Attempting to send case results to testRailClient')
+    async function sendReportAttempt({runId, testResults, attemptsLeft}) {
+        debug('Attempting to send case results to TestRail')
 
-        let response = await addResultsForCases(runId, {results: caseResults})
+        let response = await addResultsForCases(runId, testResults)
         response = typeof response === 'string' ? JSON.parse(response) : response
 
-        debug('Received response from testRailClient.')
+        debug('Received response from TestRail.')
 
         if (response instanceof Array && response.length) {
-            console.log('Successfully uploaded ' + response.length + ' test case results to testRailClient.')
+            console.log('Successfully uploaded ' + response.length + ' test case results to TestRail.')
             debug(response)
         }
         else {
             if (attemptsLeft > 0) {
                 attemptsLeft -= 1
                 debug('Failed to upload case runs. Attempts left: #' + attemptsLeft)
-                await sendReportAttempt({runId, caseResults, attemptsLeft})
+                await sendReportAttempt({runId, testResults, attemptsLeft})
             }
             else {
                 debug(response)
-                debug(caseResults)
-                throw new Error('There was an error uploading test results to testRailClient: ' + response.error)
+                debug(testResults)
+                throw new Error('There was an error uploading test results to TestRail: ' + response.error)
             }
         }
     }
 
-    this.sendReport = async ({runId, caseResults, attempts}) => {
-        await sendReportAttempt({runId, caseResults, attemptsLeft: attempts})
+    this.sendReport = async ({runId, testResults, attempts}) => {
+        await sendReportAttempt({runId, testResults, attemptsLeft: attempts})
     }
 }
 
