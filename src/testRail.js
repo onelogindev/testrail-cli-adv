@@ -1,40 +1,90 @@
 'use strict'
 let TestRailClient = require('node-testrail')
 
-function TestRailManager({testRailUrl, testRailUser, testRailPassword, debug, console}) {
-    let console = console || global.console
+function TestRailManager({testRailUrl, testRailUser, testRailPassword, debug}) {
 
     // Authenticate and create the TestRail client.
     let testRailClient = new TestRailClient(testRailUrl, testRailUser, testRailPassword)
-    let planId = undefined
+    let planIdProvided = false
     let defaultRunId = 0
+    let caseTestRuns = {}
 
-    this.setup = async ({runId, planId}) => {
-        defaultRunId = runId
-        // TODO load test plan info
-    }
-
-    this.resolveCaseTestRunsFromPlan = caseId => {
-        if (planId === undefined) {
-            return [defaultRunId]
-        } else {
-            // TODO get info from set up map
-        }
-    }
+    // TestRail lib methods promisified
 
     function addResultsForCases(runId, testResults) {
         return new Promise(fulfill => {
             testRailClient.addResultsForCases(runId, {results: testResults}, function (response) {
+                response = typeof response === 'string' ? JSON.parse(response) : response
                 fulfill(response)
             })
         })
+    }
+
+    function getPlan(planId) {
+        return new Promise(fulfill => {
+            testRailClient.getPlan(planId, function (response) {
+                response = typeof response === 'string' ? JSON.parse(response) : response
+                fulfill(response)
+            })
+        })
+    }
+
+    function getTests(runId) {
+        return new Promise(fulfill => {
+            testRailClient.getTests(runId, function (response) {
+                response = typeof response === 'string' ? JSON.parse(response) : response
+                fulfill(response)
+            })
+        })
+    }
+
+    // actual lib methods
+
+    this.setup = async ({runId, planId}) => {
+        defaultRunId = runId
+        if (planId === undefined) {
+            return
+        }
+        planIdProvided = true
+        let plan = await getPlan(planId)
+        if (!Array.isArray(plan.entries)) {
+            throw new Error('Couldn\'t get info about plan #' + planId + ': ' + JSON.stringify(plan, undefined, 4).substr(0, 1000))
+        }
+        for (let entry of plan.entries) {
+            if (!Array.isArray(entry.runs)) {
+                throw new Error('Couldn\'t get info about plan #' + planId + ' suite #' + entry.suite_id + ' entry: ' + JSON.stringify(entry, undefined, 4).substr(0, 1000))
+            }
+            for (let run of entry.runs) {
+                let tests = await getTests(run.id)
+                if (!Array.isArray(tests)) {
+                    throw new Error('Couldn\'t get info about test run #' + run.id + ': ' + JSON.stringify(tests, undefined, 4).substr(0, 1000))
+                }
+                for (let test of tests) {
+                    if (caseTestRuns[test.case_id] === undefined) {
+                        caseTestRuns[test.case_id] = []
+                    }
+                    caseTestRuns[test.case_id].push(run.id)
+                }
+            }
+        }
+    }
+
+    this.resolveTestRunsFromCasId = caseId => {
+        if (planIdProvided) {
+            let testRuns = caseTestRuns[caseId]
+            if (testRuns === undefined) {
+                testRuns = []
+            }
+            return testRuns
+        } else {
+            return [defaultRunId]
+        }
     }
 
     async function sendReportAttempt({runId, testResults, attemptsLeft}) {
         debug('Attempting to send case results to TestRail')
 
         let response = await addResultsForCases(runId, testResults)
-        response = typeof response === 'string' ? JSON.parse(response) : response
 
         debug('Received response from TestRail.')
 

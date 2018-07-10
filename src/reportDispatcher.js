@@ -1,7 +1,7 @@
 'use strict'
 
 function ReportDispatcher({debug}) {
-    this.dispatch = ({caseRuns, resolveCaseIdsFromCaseRun, resolveCaseTestRunsFromPlan}) => {
+    this.dispatch = ({caseRuns, resolveCaseIdsFromCaseRun, resolveTestRunsFromCasId}) => {
 
         // firstly group case runs by TestRail case id; one case run may relate to multiple TestRail cases
         let caseResults = {}
@@ -60,7 +60,7 @@ function ReportDispatcher({debug}) {
             caseSummary.elapsed = '' + caseSummary.elapsed + 's'
             debug('caseSummary.elapsed = ' + caseSummary.elapsed)
 
-            let testRuns = resolveCaseTestRunsFromPlan(caseId)
+            let testRuns = resolveTestRunsFromCasId(caseId)
             if (testRuns.length === 1) {
                 let runId = testRuns[0]
                 if (planResults[runId] === undefined) {

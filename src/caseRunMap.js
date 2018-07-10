@@ -2,8 +2,7 @@
 let YAML = require('yamljs')
 let fs = require('fs')
 
-function CaseRunMapManager({debug, console}) {
-    let console = console || global.console
+function CaseRunMapManager({debug}) {
 
     let caseMapRunToRail = {projectId: null, caseNameToIdMap: {}, caseClassAndNameToIdMap: {}}
 

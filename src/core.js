@@ -13,7 +13,6 @@ let ReportDispatcher    = require('./reportDispatcher')
  * @returns {{report: Function}}
  */
 function Core({testRailUrl, testRailUser, testRailPassword, console, debugMode}) {
-    let console = console || global.console
     let debug = function (message) {
         if (debugMode) {
             console.error(message)
@@ -27,7 +26,7 @@ function Core({testRailUrl, testRailUser, testRailPassword, console, debugMode})
      * @param {int} runId
      *   The ID of the run with which to associate the cases.
      * @param {int} planId
-     *   The ID of the test plan which should be analyzed to associate results with single run cases.
+     *   The ID of the test plan which should be analyzed to associate results with single case runs.
      * @param {string} reportsPath
      *   The path to the junit XML file or directory of files.
      * @param {boolean} logCoverage
@@ -37,10 +36,10 @@ function Core({testRailUrl, testRailUser, testRailPassword, console, debugMode})
 
         debug('Attempting to report runs for test cases.')
 
-        let testRailManager = new TestRailManager({testRailUrl, testRailUser, testRailPassword, debug, console})
+        let testRailManager = new TestRailManager({testRailUrl, testRailUser, testRailPassword, debug})
         await testRailManager.setup({runId, planId})
 
-        let caseRunMapManager = new CaseRunMapManager({debug, console})
+        let caseRunMapManager = new CaseRunMapManager({debug})
         caseRunMapManager.loadMapFromFile('./testrail-cli.json')
 
         let jUnitReportsManager = new JUnitReportsManager({debug})
@@ -50,7 +49,7 @@ function Core({testRailUrl, testRailUser, testRailPassword, console, debugMode})
         let planResults = reportDispatcher.dispatch({
             caseRuns,
             resolveCaseIdsFromCaseRun: caseRunMapManager.resolveCaseIdsFromCaseRun,
-            resolveCaseTestRunsFromPlan: testRailManager.resolveCaseTestRunsFromPlan,
+            resolveTestRunsFromCasId : testRailManager  .resolveTestRunsFromCasId,
         })
 
         if (logCoverage) {

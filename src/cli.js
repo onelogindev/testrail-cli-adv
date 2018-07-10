@@ -2,9 +2,8 @@
 
 let Core = require('./core.js')
 
-module.exports = function testrailCliFactory(argv, process, console) {
+module.exports = function testrailCliFactory(argv, process) {
     process = process || global.process
-    console = console || global.console
     let url      = process.env.TESTRAIL_URL || argv.url
     let username = process.env.TESTRAIL_UN  || argv.username
     let password = process.env.TESTRAIL_PW  || argv.password
@@ -24,7 +23,6 @@ module.exports = function testrailCliFactory(argv, process, console) {
     configs.testRailUrl      = url
     configs.testRailUser     = username
     configs.testRailPassword = password
-    configs.console          = console
     configs.debugMode        = argv.debug || false
 
     // Instantiate the core.
