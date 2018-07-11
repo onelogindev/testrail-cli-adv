@@ -12,9 +12,12 @@ let ReportDispatcher    = require('./reportDispatcher')
  * @param {object} configs
  * @returns {{report: Function}}
  */
-function Core({testRailUrl, testRailUser, testRailPassword, console, debugMode}) {
+function Core({testRailUrl, testRailUser, testRailPassword, debugMode}) {
     let debug = function (message) {
         if (debugMode) {
+            if (typeof  message === 'object') {
+                message = JSON.stringify(message, undefined, 4)
+            }
             console.error(message)
         }
     }
@@ -40,7 +43,8 @@ function Core({testRailUrl, testRailUser, testRailPassword, console, debugMode})
         await testRailManager.setup({runId, planId})
 
         let caseRunMapManager = new CaseRunMapManager({debug})
-        caseRunMapManager.loadMapFromFile('./testrail-cli.json')
+        // TODO path should be configurable
+        caseRunMapManager.loadMapFromFile('./.testrail-cli.json')
 
         let jUnitReportsManager = new JUnitReportsManager({debug})
         let caseRuns = jUnitReportsManager.loadCasesFromReportsPath(reportsPath)
@@ -57,7 +61,7 @@ function Core({testRailUrl, testRailUser, testRailPassword, console, debugMode})
         }
 
         // Post results if we had any.
-        if (planResults.length > 0) {
+        if (Object.keys(planResults).length > 0) {
             for (let runId of Object.keys(planResults)) {
                 let testResults = planResults[runId]
                 await testRailManager.sendReport({runId, testResults, attempts: 3})

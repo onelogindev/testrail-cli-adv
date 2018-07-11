@@ -1,6 +1,7 @@
 'use strict'
 let YAML = require('yamljs')
 let fs = require('fs')
+let path  = require('path')
 
 function CaseRunMapManager({debug}) {
 
@@ -82,7 +83,7 @@ function CaseRunMapManager({debug}) {
         }
     }
 
-    this.loadMapFromFile = (filePath) => {
+    this.loadMapFromFile = filePath => {
         let ext = path.extname(filePath)
         switch (ext) {
             case '.yml':

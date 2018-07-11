@@ -6,6 +6,9 @@ let HtmlEntities = new HtmlEntitiesFactory()
 
 function JUnitReportsManager({debug}) {
     function parseReportBranch(reportBranch, cases) {
+        if (reportBranch.elements === undefined) {
+            return
+        }
         for (let reportElement of reportBranch.elements) {
             // If the root represents a single testsuite, treat it as such.
             if (reportElement.name === 'testsuite') {
@@ -17,39 +20,44 @@ function JUnitReportsManager({debug}) {
                     if (testCaseElement.name !== 'testcase') {
                         continue
                     }
+                    debug(testCaseElement)
                     let testTime = parseInt(testCaseElement.attributes.time)
-                    let failures = testCaseElement.elements
-                        .filter(testCaseResultElement => {
-                            return testCaseResultElement.name === 'failure'
-                        })
-                        .map(failureElement => {
-                            let message = ''
-                            if (failureElement.attributes && failureElement.attributes.message) {
-                                message += '  ' +  HtmlEntities.decode(failureElement.attributes.message) + '\n'
-                            }
-                            if (Array.isArray(failureElement.elements)) {
-                                message += failureElement.elements
-                                    .filter(failureElementChild => {
-                                        return failureElementChild.type === 'cdata'
-                                    })
-                                    .map(cDataElement => {
-                                        return HtmlEntities.decode(cDataElement.cdata).replace(/\n/g, '\n  ')
-                                    })
-                                    .join('\n')
-                            }
-                            return message
-                        })
-                    let skipped = testCaseElement.elements
-                        .filter(testCaseResultElement => {
-                            return testCaseResultElement.name === 'skipped'
-                        })
-                        .map(skippedElement => {
-                            let message = ''
-                            if (skippedElement.attributes && skippedElement.attributes.message) {
-                                message += '  ' +  HtmlEntities.decode(skippedElement.attributes.message) + '\n'
-                            }
-                            return message
-                        })
+                    let failures = []
+                    let skipped = []
+                    if (Array.isArray(testCaseElement.elements)) {
+                        failures = testCaseElement.elements
+                            .filter(testCaseResultElement => {
+                                return testCaseResultElement.name === 'failure'
+                            })
+                            .map(failureElement => {
+                                let message = ''
+                                if (failureElement.attributes && failureElement.attributes.message) {
+                                    message += '  ' +  HtmlEntities.decode(failureElement.attributes.message) + '\n'
+                                }
+                                if (Array.isArray(failureElement.elements)) {
+                                    message += failureElement.elements
+                                        .filter(failureElementChild => {
+                                            return failureElementChild.type === 'cdata'
+                                        })
+                                        .map(cDataElement => {
+                                            return HtmlEntities.decode(cDataElement.cdata).replace(/\n/g, '\n  ')
+                                        })
+                                        .join('\n')
+                                }
+                                return message
+                            })
+                        skipped = testCaseElement.elements
+                            .filter(testCaseResultElement => {
+                                return testCaseResultElement.name === 'skipped'
+                            })
+                            .map(skippedElement => {
+                                let message = ''
+                                if (skippedElement.attributes && skippedElement.attributes.message) {
+                                    message += '  ' +  HtmlEntities.decode(skippedElement.attributes.message) + '\n'
+                                }
+                                return message
+                            })
+                    }
                     cases.push({
                         testClass: HtmlEntities.decode(testCaseElement.attributes.classname),
                         testName : HtmlEntities.decode(testCaseElement.attributes.name),
@@ -60,17 +68,14 @@ function JUnitReportsManager({debug}) {
                 }
             }
             // If the root consists of multiple test suites, recurse.
-            else if (reportElement.name === "testsuites" && Array.isArray(reportElement.elements)) {
-                for (let testSuiteElement of reportElement.elements) {
-                    parseReportBranch(testSuiteElement, cases)
-                }
+            else if (reportElement.name === "testsuites") {
+                parseReportBranch(reportElement, cases)
             }
             // If we map to neither of the above expectations, abort.
             else {
                 debug(reportElement)
                 throw new Error('Invalid xml. Expected element name "testsuite" or "testsuites", but the name is ' + reportElement.name)
             }
-
         }
     }
 

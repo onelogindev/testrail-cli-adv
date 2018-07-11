@@ -57,10 +57,15 @@ function ReportDispatcher({debug}) {
                     caseSummary.comment += runResult.testName + ': ' + runResult.comment + '\n'
                 }
             }
+            if (caseSummary.elapsed === 0) {
+                caseSummary.elapsed = 1
+            }
             caseSummary.elapsed = '' + caseSummary.elapsed + 's'
             debug('caseSummary.elapsed = ' + caseSummary.elapsed)
 
             let testRuns = resolveTestRunsFromCasId(caseId)
+            debug('testRuns:')
+            debug(testRuns)
             if (testRuns.length === 1) {
                 let runId = testRuns[0]
                 if (planResults[runId] === undefined) {

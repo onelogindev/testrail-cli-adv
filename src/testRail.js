@@ -67,6 +67,7 @@ function TestRailManager({testRailUrl, testRailUser, testRailPassword, debug}) {
                 }
             }
         }
+        debug(caseTestRuns)
     }
 
     this.resolveTestRunsFromCasId = caseId => {

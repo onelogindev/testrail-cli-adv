@@ -11,7 +11,7 @@ let cli = cliFactory(argv)
 if (cli.hasOwnProperty(command)) {
     cli[command]()
         .catch(err => {
-            console.error(err.message)
+            console.error(err.stack)
             process.exit(1)
         })
 } else {
