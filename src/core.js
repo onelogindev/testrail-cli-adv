@@ -221,14 +221,18 @@ module.exports = function constructCore(TestRail, configs, process, console) {
                         if (failureElement.attributes && failureElement.attributes.message) {
                           runResult.comment += '  ' +  HtmlEntities.decode(failureElement.attributes.message) + '\n';
                         }
-                        //look for CDATA as well
+                        
                         if (Array.isArray(failureElement.elements)) {
-                          var cDataElements = failureElement.elements.filter(function(failureElementChild) {
-                            return failureElementChild.type === 'cdata'
-                          });
-                          cDataElements.forEach(function(cDataElement) {
-                            runResult.comment += HtmlEntities.decode(cDataElement.cdata).replace(/\n/g, '\n  ') + '\n';
-                          });
+                          // "failure" elements are expected to have a single text node with relevant data to the failure
+                          var failureContent = failureElement.elements[0]
+
+                          if (failureContent.type === 'text') {
+                            runResult.comment += HtmlEntities.decode(failureContent.text) + '\n';
+                          }
+                          // It's also common that failure content is inside a CDATA node
+                          else if (failureContent.type === 'cdata') {
+                            runResult.comment += HtmlEntities.decode(failureContent.cdata).replace(/\n/g, '\n  ') + '\n';
+                          }
                         }
                       })
                     }
@@ -295,8 +299,13 @@ module.exports = function constructCore(TestRail, configs, process, console) {
                 caseResult.comment += runResult.testName + ': ' + runResult.comment + '\n'
               }
             });
-            caseResult.elapsed = '' + caseResult.elapsed + 's';
+
+            if (isNaN(caseResult.elapsed)) {
+              delete caseResult.elapsed;
+            } else {
+              caseResult.elapsed = '' + caseResult.elapsed + 's';
               debug('caseResult.elapsed = ' + caseResult.elapsed);
+            }
             caseResults.push(caseResult);
           });
           (function addResultsForCasesAttempt() {
@@ -366,9 +375,12 @@ module.exports = function constructCore(TestRail, configs, process, console) {
 
       debug(testName);
 
-      //First try to find case id in case name; it should be enclosed in square brackets with a number sign attached at left side
-      if(testName.match(/#\[\d{1,6}]/) !== null) {
-          railCaseIds = [testName.match(/#\[\d{1,6}]/)[0].match(/\d{1,6}/)[0]];
+      // First try to find case id in case name.
+      // By default, it looks for an id enclosed in square brackets with a number sign attached at left side
+      // unless configuration `caseIdRegExp` is provided
+      var matcher = testName.match(configs.caseIdRegExp);
+      if(matcher) {
+        railCaseIds = [matcher[1]];
       }
 
       // Then check if there's a matching caseClassAndNameToIdMap class.
