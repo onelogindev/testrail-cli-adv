@@ -142,6 +142,7 @@ module.exports = function constructCore(TestRail, configs, process, console) {
             switch(statusId) {
               case 1: return 'Passed'
               case 5: return 'Failed'
+              case 6: return 'Not Tested'
               default: return 'None'
             };
           };
@@ -216,6 +217,8 @@ module.exports = function constructCore(TestRail, configs, process, console) {
                     runResult.elapsed = elapsed;
                   }
 
+                  // Assume the test case passed. 1 means pass.
+                  runResult.statusId = 1
                   if (Array.isArray(testCaseElement.elements)) {
                     var failureElements = testCaseElement.elements.filter(function (testCaseResultElement) {
                       return testCaseResultElement.name === 'failure'
@@ -246,12 +249,9 @@ module.exports = function constructCore(TestRail, configs, process, console) {
                       })
                     }
                     else if (skippedElements.length > 0) {
-                      // TODO: what TestRail status to map?
+                      // 6 means not tested
+                      runResult.statusId = 6
                     }
-                  }
-                  // Otherwise, the test case passed. 1 means pass.
-                  else {
-                      runResult.statusId = 1;
                   }
 
                   if (!Array.isArray(runResult.railCaseIds) || !runResult.railCaseIds.length) {
