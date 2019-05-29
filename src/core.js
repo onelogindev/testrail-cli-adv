@@ -135,7 +135,16 @@ module.exports = function constructCore(TestRail, configs, process, console) {
     report: function reportXml(runId, fileOrDir) {
       var files = [],
           caseResultsMap = {},
-          fsStat;
+          unmappedIdResults = [],
+          unmappedStatusResults = [],
+          fsStat,
+          mapTestRailStatus = function (statusId) {
+            switch(statusId) {
+              case 1: return 'Passed'
+              case 5: return 'Failed'
+              default: return 'None'
+            };
+          };
 
       debug('Attempting to report runs for test cases.');
 
@@ -245,21 +254,29 @@ module.exports = function constructCore(TestRail, configs, process, console) {
                       runResult.statusId = 1;
                   }
 
-                  // Only append tests we've mapped to a TestRail status.
-                  if (runResult.statusId) {
-                    debug('Result: ' + JSON.stringify(runResult, undefined, 4));
-                    debug('Appending result to cases: ' + runResult.railCaseIds);
-                    runResult.railCaseIds.forEach(function(caseId) {
-                      if (caseResultsMap[caseId] === undefined) {
-                        caseResultsMap[caseId] = []
-                      }
-                      caseResultsMap[caseId].push(runResult)
-                    });
-                  }
-                  else {
+                  if (!Array.isArray(runResult.railCaseIds) || !runResult.railCaseIds.length) {
                     debug('Unable to map testCase to TestRail CaseID:');
                     debug(testCaseElement);
+                    unmappedIdResults.push(runResult);
+                    return;
                   }
+
+                  if (!runResult.statusId) {
+                    debug('Unable to map testCase to TestRail Status:');
+                    debug(testCaseElement);
+                    unmappedStatusResults.push(runResult);
+                    return;
+                  }
+
+                  // Only append tests we've mapped to both a case ID and a TestRail status.
+                  debug('Result: ' + JSON.stringify(runResult, undefined, 4));
+                  debug('Appending result to cases: ' + runResult.railCaseIds);
+                  runResult.railCaseIds.forEach(function(caseId) {
+                    if (caseResultsMap[caseId] === undefined) {
+                      caseResultsMap[caseId] = []
+                    }
+                    caseResultsMap[caseId].push(runResult)
+                  });
                 });
               }
               // If the root consists of multiple test suites, recurse.
@@ -277,6 +294,20 @@ module.exports = function constructCore(TestRail, configs, process, console) {
             })(element);
           })
         });
+
+        if (unmappedIdResults.length) {
+          console.error('WARN: The ' + unmappedIdResults.length + ' tests below could not be mapped to a TestRail CaseID');
+          unmappedIdResults.forEach(function (result, index) {
+            console.error('\t' + (index + 1) + ') ' + mapTestRailStatus(result.statusId) + ': ' + result.testName);
+          });
+        }
+
+        if (unmappedStatusResults.length) {
+          console.error('WARN: The ' + unmappedStatusResults.length + ' tests below could not be mapped to a TestRail Status');
+          unmappedStatusResults.forEach(function (result, index) {
+            console.error('\t' + (index + 1) + ') ' + result.testName);
+          });
+        }
 
         // Post results if we had any.
         if (Object.keys(caseResultsMap).length > 0) {
