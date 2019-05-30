@@ -41,6 +41,10 @@ module.exports = function testrailCliFactory(coreFactory, TestRailFactory, argv,
     configs = {projectId: null, caseNameToIdMap: {}, caseClassAndNameToIdMap: {}};
   }
 
+  // Set configs defaults.
+  configs.caseIdRegExp = configs.caseIdRegExp || '#\\[(\\d{1,6})]';
+  configs.caseIdRegExp = new RegExp(configs.caseIdRegExp); // Pre-compile regexp for better performance
+
   // Global configs to pull in.
   configs.debug = argv.debug || false;
   configs.coverage = argv.coverage || false;

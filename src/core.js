@@ -135,7 +135,17 @@ module.exports = function constructCore(TestRail, configs, process, console) {
     report: function reportXml(runId, fileOrDir) {
       var files = [],
           caseResultsMap = {},
-          fsStat;
+          unmappedIdResults = [],
+          unmappedStatusResults = [],
+          fsStat,
+          mapTestRailStatus = function (statusId) {
+            switch(statusId) {
+              case 1: return 'Passed'
+              case 5: return 'Failed'
+              case 6: return 'Not Tested'
+              default: return 'None'
+            };
+          };
 
       debug('Attempting to report runs for test cases.');
 
@@ -207,6 +217,8 @@ module.exports = function constructCore(TestRail, configs, process, console) {
                     runResult.elapsed = elapsed;
                   }
 
+                  // Assume the test case passed. 1 means pass.
+                  runResult.statusId = 1
                   if (Array.isArray(testCaseElement.elements)) {
                     var failureElements = testCaseElement.elements.filter(function (testCaseResultElement) {
                       return testCaseResultElement.name === 'failure'
@@ -221,41 +233,50 @@ module.exports = function constructCore(TestRail, configs, process, console) {
                         if (failureElement.attributes && failureElement.attributes.message) {
                           runResult.comment += '  ' +  HtmlEntities.decode(failureElement.attributes.message) + '\n';
                         }
-                        //look for CDATA as well
+                        
                         if (Array.isArray(failureElement.elements)) {
-                          var cDataElements = failureElement.elements.filter(function(failureElementChild) {
-                            return failureElementChild.type === 'cdata'
-                          });
-                          cDataElements.forEach(function(cDataElement) {
-                            runResult.comment += HtmlEntities.decode(cDataElement.cdata).replace(/\n/g, '\n  ') + '\n';
-                          });
+                          // "failure" elements are expected to have a single text node with relevant data to the failure
+                          var failureContent = failureElement.elements[0]
+
+                          if (failureContent.type === 'text') {
+                            runResult.comment += HtmlEntities.decode(failureContent.text) + '\n';
+                          }
+                          // It's also common that failure content is inside a CDATA node
+                          else if (failureContent.type === 'cdata') {
+                            runResult.comment += HtmlEntities.decode(failureContent.cdata).replace(/\n/g, '\n  ') + '\n';
+                          }
                         }
                       })
                     }
                     else if (skippedElements.length > 0) {
-                      // TODO: what TestRail status to map?
+                      // 6 means not tested
+                      runResult.statusId = 6
                     }
                   }
-                  // Otherwise, the test case passed. 1 means pass.
-                  else {
-                      runResult.statusId = 1;
-                  }
 
-                  // Only append tests we've mapped to a TestRail status.
-                  if (runResult.statusId) {
-                    debug('Result: ' + JSON.stringify(runResult, undefined, 4));
-                    debug('Appending result to cases: ' + runResult.railCaseIds);
-                    runResult.railCaseIds.forEach(function(caseId) {
-                      if (caseResultsMap[caseId] === undefined) {
-                        caseResultsMap[caseId] = []
-                      }
-                      caseResultsMap[caseId].push(runResult)
-                    });
-                  }
-                  else {
+                  if (!Array.isArray(runResult.railCaseIds) || !runResult.railCaseIds.length) {
                     debug('Unable to map testCase to TestRail CaseID:');
                     debug(testCaseElement);
+                    unmappedIdResults.push(runResult);
+                    return;
                   }
+
+                  if (!runResult.statusId) {
+                    debug('Unable to map testCase to TestRail Status:');
+                    debug(testCaseElement);
+                    unmappedStatusResults.push(runResult);
+                    return;
+                  }
+
+                  // Only append tests we've mapped to both a case ID and a TestRail status.
+                  debug('Result: ' + JSON.stringify(runResult, undefined, 4));
+                  debug('Appending result to cases: ' + runResult.railCaseIds);
+                  runResult.railCaseIds.forEach(function(caseId) {
+                    if (caseResultsMap[caseId] === undefined) {
+                      caseResultsMap[caseId] = []
+                    }
+                    caseResultsMap[caseId].push(runResult)
+                  });
                 });
               }
               // If the root consists of multiple test suites, recurse.
@@ -273,6 +294,20 @@ module.exports = function constructCore(TestRail, configs, process, console) {
             })(element);
           })
         });
+
+        if (unmappedIdResults.length) {
+          console.error('WARN: The ' + unmappedIdResults.length + ' tests below could not be mapped to a TestRail CaseID');
+          unmappedIdResults.forEach(function (result, index) {
+            console.error('\t' + (index + 1) + ') ' + mapTestRailStatus(result.statusId) + ': ' + result.testName);
+          });
+        }
+
+        if (unmappedStatusResults.length) {
+          console.error('WARN: The ' + unmappedStatusResults.length + ' tests below could not be mapped to a TestRail Status');
+          unmappedStatusResults.forEach(function (result, index) {
+            console.error('\t' + (index + 1) + ') ' + result.testName);
+          });
+        }
 
         // Post results if we had any.
         if (Object.keys(caseResultsMap).length > 0) {
@@ -295,8 +330,13 @@ module.exports = function constructCore(TestRail, configs, process, console) {
                 caseResult.comment += runResult.testName + ': ' + runResult.comment + '\n'
               }
             });
-            caseResult.elapsed = '' + caseResult.elapsed + 's';
+
+            if (isNaN(caseResult.elapsed)) {
+              delete caseResult.elapsed;
+            } else {
+              caseResult.elapsed = '' + caseResult.elapsed + 's';
               debug('caseResult.elapsed = ' + caseResult.elapsed);
+            }
             caseResults.push(caseResult);
           });
           (function addResultsForCasesAttempt() {
@@ -366,9 +406,12 @@ module.exports = function constructCore(TestRail, configs, process, console) {
 
       debug(testName);
 
-      //First try to find case id in case name; it should be enclosed in square brackets with a number sign attached at left side
-      if(testName.match(/#\[\d{1,6}]/) !== null) {
-          railCaseIds = [testName.match(/#\[\d{1,6}]/)[0].match(/\d{1,6}/)[0]];
+      // First try to find case id in case name.
+      // By default, it looks for an id enclosed in square brackets with a number sign attached at left side
+      // unless configuration `caseIdRegExp` is provided
+      var matcher = testName.match(configs.caseIdRegExp);
+      if(matcher) {
+        railCaseIds = [matcher[1]];
       }
 
       // Then check if there's a matching caseClassAndNameToIdMap class.
